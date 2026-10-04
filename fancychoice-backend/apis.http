@@ -1,0 +1,359 @@
+### FancyChoice Backend - API Test File
+### Base URL + tokens. Replace @token, @planId, @subscriptionId, @deliveryId, @paymentId after each step.
+### VS Code: install "REST Client" extension, then click "Send Request" above each block.
+
+@baseUrl = http://localhost:5000
+@token = YOUR_JWT_HERE
+@planId = YOUR_PLAN_ID_HERE
+@subscriptionId = YOUR_SUBSCRIPTION_ID_HERE
+@deliveryId = YOUR_DELIVERY_ID_HERE
+@paymentId = YOUR_PAYMENT_ID_HERE
+@addressId = YOUR_ADDRESS_ID_HERE
+
+### ── 0. Health check ─────────────────────────────
+### GET /health
+GET {{baseUrl}}/health
+
+### ── 1. AUTH ─────────────────────────────────────
+
+### 1a. Send OTP (customer login/signup via phone)
+### Use case: customer enters phone on Login screen -> Send OTP
+POST {{baseUrl}}/api/auth/send-otp
+Content-Type: application/json
+
+{
+  "phone": "9876543210",
+  "purpose": "login"
+}
+
+### 1b. Verify OTP + login (dev mode: OTP_BYPASS=true accepts any 6-digit, real OTP logged in backend console)
+### Use case: customer enters OTP -> logged in, copy "token" into @token above
+POST {{baseUrl}}/api/auth/verify-otp
+Content-Type: application/json
+
+{
+  "phone": "9876543210",
+  "otp": "123456"
+}
+
+### 1c. Signup with password (new customer with address)
+### Use case: Signup screen -> create account
+POST {{baseUrl}}/api/auth/signup
+Content-Type: application/json
+
+{
+  "name": "Anish Patil",
+  "phone": "9876543211",
+  "email": "anish@example.com",
+  "password": "password123",
+  "address": {
+    "label": "Home",
+    "street": "Flat 101, MG Road",
+    "city": "Pune",
+    "state": "Maharashtra",
+    "pincode": "411001",
+    "instructions": "Call on arrival"
+  }
+}
+
+### 1d. Login with password (phone or email + password)
+### Use case: Login screen -> password tab
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "identifier": "9876543211",
+  "password": "password123"
+}
+
+### 1e. Get logged-in user (needs @token)
+GET {{baseUrl}}/api/auth/me
+Authorization: Bearer {{token}}
+
+### 1f. Logout (stateless - client discards token)
+POST {{baseUrl}}/api/auth/logout
+Authorization: Bearer {{token}}
+
+### ── 2. USER / PROFILE ───────────────────────────
+
+### 2a. Get profile
+GET {{baseUrl}}/api/users/profile
+Authorization: Bearer {{token}}
+
+### 2b. Update profile (name, delivery slots, notes)
+PUT {{baseUrl}}/api/users/profile
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Anish P",
+  "deliveryPreferences": {
+    "slots": ["morning", "evening"],
+    "notes": "Less spicy, extra ghee"
+  }
+}
+
+### 2c. Add address
+POST {{baseUrl}}/api/users/address
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "label": "Office",
+  "street": "Office 202, Hinjewadi Phase 1",
+  "city": "Pune",
+  "state": "Maharashtra",
+  "pincode": "411057",
+  "isDefault": false
+}
+
+### 2d. Update address (set as default)
+PUT {{baseUrl}}/api/users/address/{{addressId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "isDefault": true,
+  "instructions": "Gate 2, security will guide"
+}
+
+### 2e. Delete address
+DELETE {{baseUrl}}/api/users/address/{{addressId}}
+Authorization: Bearer {{token}}
+
+### ── 3. PLANS ────────────────────────────────────
+
+### 3a. List plans (public - Plans tab)
+GET {{baseUrl}}/api/plans
+
+### 3b. Alias used by mobile app
+GET {{baseUrl}}/api/subscriptions/plans
+
+### 3c. Get single plan by slug or id
+GET {{baseUrl}}/api/plans/2-rotis
+
+### 3d. Create plan (admin only - login as admin 9999999999 first)
+POST {{baseUrl}}/api/plans
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "4 Rotis / Day",
+  "slug": "4-rotis",
+  "rotisPerDay": 4,
+  "description": "For couples",
+  "prices": { "monthly": 1599, "quarterly": 4299, "yearly": 15999 },
+  "features": ["4 fresh rotis daily", "Pause anytime"],
+  "sortOrder": 4
+}
+
+### 3e. Update plan (admin)
+PUT {{baseUrl}}/api/plans/{{planId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "prices": { "monthly": 1099, "quarterly": 2999, "yearly": 10999 }
+}
+
+### 3f. Deactivate plan (admin)
+DELETE {{baseUrl}}/api/plans/{{planId}}
+Authorization: Bearer {{token}}
+
+### ── 4. SUBSCRIPTIONS ────────────────────────────
+
+### 4a. Create subscription (customer picks plan -> checkout)
+### Copy a real _id from GET /api/plans into @planId
+POST {{baseUrl}}/api/subscriptions/create
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "planId": "{{planId}}",
+  "billingCycle": "monthly",
+  "deliverySlots": ["morning"],
+  "autoRenew": true,
+  "deliveryAddress": {
+    "label": "Home",
+    "street": "Flat 101, MG Road",
+    "city": "Pune",
+    "state": "Maharashtra",
+    "pincode": "411001",
+    "instructions": "Morning 7-9 AM"
+  }
+}
+
+### 4b. Get my active subscription (Home screen)
+GET {{baseUrl}}/api/subscriptions/my-subscription
+Authorization: Bearer {{token}}
+
+### 4c. Get my subscriptions (history, paginated)
+GET {{baseUrl}}/api/subscriptions/my?page=1&limit=10
+Authorization: Bearer {{token}}
+
+### 4d. Get subscription by id
+GET {{baseUrl}}/api/subscriptions/{{subscriptionId}}
+Authorization: Bearer {{token}}
+
+### 4e. Update subscription (change slots / address / auto-renew)
+PUT {{baseUrl}}/api/subscriptions/{{subscriptionId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "deliverySlots": ["morning", "evening"],
+  "autoRenew": false,
+  "deliveryAddress": {
+    "label": "Home",
+    "street": "Flat 101, MG Road",
+    "city": "Pune",
+    "state": "Maharashtra",
+    "pincode": "411001"
+  }
+}
+
+### 4f. Pause subscription (going on vacation)
+POST {{baseUrl}}/api/subscriptions/{{subscriptionId}}/pause
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "reason": "Out of town for a week"
+}
+
+### 4g. Resume subscription
+POST {{baseUrl}}/api/subscriptions/{{subscriptionId}}/resume
+Authorization: Bearer {{token}}
+
+### 4h. Cancel subscription
+POST {{baseUrl}}/api/subscriptions/{{subscriptionId}}/cancel
+Authorization: Bearer {{token}}
+
+### ── 5. DELIVERIES ───────────────────────────────
+
+### 5a. Today's deliveries (customer: mine | deliveryBoy: assigned | admin: all)
+GET {{baseUrl}}/api/deliveries/today
+Authorization: Bearer {{token}}
+
+### 5b. Delivery history (paginated, optional ?status=delivered)
+GET {{baseUrl}}/api/deliveries/history?page=1&limit=20
+Authorization: Bearer {{token}}
+
+### 5c. Get delivery by id
+GET {{baseUrl}}/api/deliveries/{{deliveryId}}
+Authorization: Bearer {{token}}
+
+### 5d. Get QR code for delivery (customer shows to delivery boy)
+GET {{baseUrl}}/api/deliveries/{{deliveryId}}/qr-code
+Authorization: Bearer {{token}}
+
+### 5e. Verify QR code (delivery boy scans)
+POST {{baseUrl}}/api/deliveries/{{deliveryId}}/verify-qr
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "token": "PASTE_TOKEN_FROM_5d"
+}
+
+### 5f. Rate delivery (customer, only after delivered)
+POST {{baseUrl}}/api/deliveries/{{deliveryId}}/rate
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "score": 5,
+  "comment": "Fresh and on time!"
+}
+
+### 5g. Update delivery status (deliveryBoy / admin only)
+PATCH {{baseUrl}}/api/deliveries/{{deliveryId}}/status
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "status": "out_for_delivery",
+  "lat": 18.5204,
+  "lng": 73.8567
+}
+
+### 5h. Mark delivered (deliveryBoy / admin)
+PATCH {{baseUrl}}/api/deliveries/{{deliveryId}}/status
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "status": "delivered"
+}
+
+### 5i. Assign delivery boy (admin only)
+POST {{baseUrl}}/api/deliveries/{{deliveryId}}/assign
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "deliveryBoyId": "PASTE_DELIVERY_BOY_USER_ID"
+}
+
+### ── 6. PAYMENTS ─────────────────────────────────
+
+### 6a. Create payment intent (checkout - Stripe or mock if no keys)
+POST {{baseUrl}}/api/payments/intent
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "subscriptionId": "{{subscriptionId}}",
+  "currency": "INR"
+}
+
+### 6b. Create intent with direct amount (no subscription yet)
+POST {{baseUrl}}/api/payments/intent
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "amount": 999,
+  "currency": "INR",
+  "billingCycle": "monthly"
+}
+
+### 6c. Confirm payment (mock success - flips status to succeeded)
+POST {{baseUrl}}/api/payments/{{paymentId}}/confirm
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "success": true
+}
+
+### 6d. My payments (Billing screen)
+GET {{baseUrl}}/api/payments/my?page=1&limit=20
+Authorization: Bearer {{token}}
+
+### 6e. Refund payment (admin only)
+POST {{baseUrl}}/api/payments/{{paymentId}}/refund
+Authorization: Bearer {{token}}
+
+### ── 7. ADMIN ────────────────────────────────────
+### Login as admin first: phone 9999999999 / password admin123 (after seed)
+
+### 7a. Dashboard stats (users, active subs, revenue, delivery stats)
+GET {{baseUrl}}/api/admin/dashboard
+Authorization: Bearer {{token}}
+
+### 7b. List users (optional ?role=customer&search=anish)
+GET {{baseUrl}}/api/admin/users?page=1&limit=20
+Authorization: Bearer {{token}}
+
+### ── TEST FLOW (happy path order) ────────────────
+### 1. GET /health
+### 2. POST /api/auth/send-otp (9876543210) -> POST /api/auth/verify-otp -> save token
+### 3. GET /api/plans -> save plan _id into @planId
+### 4. POST /api/subscriptions/create -> save subscription _id
+### 5. GET /api/subscriptions/my-subscription
+### 6. GET /api/deliveries/today -> save delivery _id
+### 7. GET /api/deliveries/:id/qr-code -> POST /api/deliveries/:id/verify-qr
+### 8. PATCH /api/deliveries/:id/status (out_for_delivery -> delivered)
+### 9. POST /api/deliveries/:id/rate
+### 10. POST /api/payments/intent -> POST /api/payments/:id/confirm
